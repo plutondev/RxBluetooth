@@ -3,7 +3,11 @@ package com.github.ivbaranov.rxbluetooth.example;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.text.TextUtils;
@@ -19,7 +23,6 @@ import android.widget.Toast;
 import com.github.ivbaranov.rxbluetooth.RxBluetooth;
 import com.github.ivbaranov.rxbluetooth.predicates.BtPredicate;
 import io.reactivex.android.schedulers.AndroidSchedulers;
-import io.reactivex.annotations.NonNull;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.functions.Consumer;
 import io.reactivex.schedulers.Schedulers;
@@ -27,6 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
+  private static final int REQUEST_PERMISSION_COARSE_LOCATION = 0;
   private static final int REQUEST_ENABLE_BT = 1;
   private static final String TAG = "MainActivity";
 
@@ -81,6 +85,7 @@ public class MainActivity extends AppCompatActivity {
       // handle the lack of bluetooth support
       Log.d(TAG, "Bluetooth is not supported!");
     } else {
+      initEventListeners();
       // check if bluetooth is currently enabled and ready for use
       if (!rxBluetooth.isBluetoothEnabled()) {
         // to enable bluetooth via startActivityForResult()
@@ -89,70 +94,6 @@ public class MainActivity extends AppCompatActivity {
       } else {
         // you are ready
         start.setBackgroundColor(getResources().getColor(R.color.colorActive));
-
-        compositeDisposable.add(rxBluetooth.observeDevices()
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribeOn(Schedulers.computation())
-            .subscribe(new Consumer<BluetoothDevice>() {
-              @Override public void accept(@NonNull BluetoothDevice bluetoothDevice)
-                  throws Exception {
-                addDevice(bluetoothDevice);
-              }
-            }));
-
-        compositeDisposable.add(rxBluetooth.observeDiscovery()
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribeOn(Schedulers.computation())
-            .filter(BtPredicate.in(BluetoothAdapter.ACTION_DISCOVERY_STARTED))
-            .subscribe(new Consumer<String>() {
-              @Override public void accept(String action) throws Exception {
-                start.setText(R.string.button_searching);
-              }
-            }));
-
-        compositeDisposable.add(rxBluetooth.observeDiscovery()
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribeOn(Schedulers.computation())
-            .filter(BtPredicate.in(BluetoothAdapter.ACTION_DISCOVERY_FINISHED))
-            .subscribe(new Consumer<String>() {
-              @Override public void accept(String action) throws Exception {
-                start.setText(R.string.button_restart);
-              }
-            }));
-
-        compositeDisposable.add(rxBluetooth.observeBluetoothState()
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribeOn(Schedulers.computation())
-            .filter(BtPredicate.in(BluetoothAdapter.STATE_ON))
-            .subscribe(new Consumer<Integer>() {
-              @Override public void accept(Integer integer) throws Exception {
-                start.setBackgroundColor(getResources().getColor(R.color.colorActive));
-              }
-            }));
-
-        compositeDisposable.add(rxBluetooth.observeBluetoothState()
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribeOn(Schedulers.computation())
-            .filter(BtPredicate.in(BluetoothAdapter.STATE_OFF,
-                BluetoothAdapter.STATE_TURNING_OFF, BluetoothAdapter.STATE_TURNING_ON))
-            .subscribe(new Consumer<Integer>() {
-              @Override public void accept(Integer integer) {
-                start.setBackgroundColor(getResources().getColor(R.color.colorInactive));
-              }
-            }));
-
-        start.setOnClickListener(new View.OnClickListener() {
-          @Override public void onClick(View v) {
-            devices.clear();
-            setAdapter(devices);
-            rxBluetooth.startDiscovery();
-          }
-        });
-        stop.setOnClickListener(new View.OnClickListener() {
-          @Override public void onClick(View v) {
-            rxBluetooth.cancelDiscovery();
-          }
-        });
       }
     }
   }
@@ -166,6 +107,93 @@ public class MainActivity extends AppCompatActivity {
     compositeDisposable.dispose();
   }
 
+  @Override public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[],
+      @NonNull int[] grantResults) {
+    super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+    if (requestCode == REQUEST_PERMISSION_COARSE_LOCATION) {
+      for (String permission : permissions) {
+        if (android.Manifest.permission.ACCESS_COARSE_LOCATION.equals(permission)) {
+          // Start discovery if permission granted
+          rxBluetooth.startDiscovery();
+        }
+      }
+    }
+  }
+
+  private void initEventListeners() {
+    compositeDisposable.add(rxBluetooth.observeDevices()
+        .observeOn(AndroidSchedulers.mainThread())
+        .subscribeOn(Schedulers.computation())
+        .subscribe(new Consumer<BluetoothDevice>() {
+          @Override public void accept(@NonNull BluetoothDevice bluetoothDevice)
+              throws Exception {
+            addDevice(bluetoothDevice);
+          }
+        }));
+
+    compositeDisposable.add(rxBluetooth.observeDiscovery()
+        .observeOn(AndroidSchedulers.mainThread())
+        .subscribeOn(Schedulers.computation())
+        .filter(BtPredicate.in(BluetoothAdapter.ACTION_DISCOVERY_STARTED))
+        .subscribe(new Consumer<String>() {
+          @Override public void accept(String action) throws Exception {
+            start.setText(R.string.button_searching);
+          }
+        }));
+
+    compositeDisposable.add(rxBluetooth.observeDiscovery()
+        .observeOn(AndroidSchedulers.mainThread())
+        .subscribeOn(Schedulers.computation())
+        .filter(BtPredicate.in(BluetoothAdapter.ACTION_DISCOVERY_FINISHED))
+        .subscribe(new Consumer<String>() {
+          @Override public void accept(String action) throws Exception {
+            start.setText(R.string.button_restart);
+          }
+        }));
+
+    compositeDisposable.add(rxBluetooth.observeBluetoothState()
+        .observeOn(AndroidSchedulers.mainThread())
+        .subscribeOn(Schedulers.computation())
+        .filter(BtPredicate.in(BluetoothAdapter.STATE_ON))
+        .subscribe(new Consumer<Integer>() {
+          @Override public void accept(Integer integer) throws Exception {
+            start.setBackgroundColor(getResources().getColor(R.color.colorActive));
+          }
+        }));
+
+    compositeDisposable.add(rxBluetooth.observeBluetoothState()
+        .observeOn(AndroidSchedulers.mainThread())
+        .subscribeOn(Schedulers.computation())
+        .filter(BtPredicate.in(BluetoothAdapter.STATE_OFF, BluetoothAdapter.STATE_TURNING_OFF,
+            BluetoothAdapter.STATE_TURNING_ON))
+        .subscribe(new Consumer<Integer>() {
+          @Override public void accept(Integer integer) {
+            start.setBackgroundColor(getResources().getColor(R.color.colorInactive));
+          }
+        }));
+
+    start.setOnClickListener(new View.OnClickListener() {
+      @Override public void onClick(View v) {
+        devices.clear();
+        setAdapter(devices);
+        if (ContextCompat.checkSelfPermission(MainActivity.this,
+            android.Manifest.permission.ACCESS_COARSE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED) {
+          ActivityCompat.requestPermissions(MainActivity.this,
+              new String[] { android.Manifest.permission.ACCESS_COARSE_LOCATION },
+              REQUEST_PERMISSION_COARSE_LOCATION);
+        } else {
+          rxBluetooth.startDiscovery();
+        }
+      }
+    });
+    stop.setOnClickListener(new View.OnClickListener() {
+      @Override public void onClick(View v) {
+        rxBluetooth.cancelDiscovery();
+      }
+    });
+  }
+
   private void addDevice(BluetoothDevice device) {
     devices.add(device);
     setAdapter(devices);
@@ -175,7 +203,8 @@ public class MainActivity extends AppCompatActivity {
     int itemLayoutId = android.R.layout.simple_list_item_1;
     result.setAdapter(new ArrayAdapter<BluetoothDevice>(this, android.R.layout.simple_list_item_2,
         android.R.id.text1, list) {
-      @Override public View getView(int position, View convertView, ViewGroup parent) {
+      @NonNull @Override
+      public View getView(int position, View convertView, @NonNull ViewGroup parent) {
         View view = super.getView(position, convertView, parent);
 
         BluetoothDevice device = devices.get(position);

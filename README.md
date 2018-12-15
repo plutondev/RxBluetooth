@@ -16,39 +16,30 @@ Full documentation
 Usage
 -----
 
-1. Declare permissions:
-   ```xml
-   <uses-permission android:name="android.permission.BLUETOOTH" />
-   <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
-   // If you intend to run on devices with android 6.0+ you also need to declare:
-   <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-   <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-   ```
-
-2. Create `RxBluetooth` instance.
+1. Create `RxBluetooth` instance.
    ```java
    RxBluetooth rxBluetooth = new RxBluetooth(this); // `this` is a context
    ```
-3. For android 6.0+ you need location permision.
+2. For android 6.0+ you need location permission.
    ```java
-   if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-        ActivityCompat.requestPermissions(this, new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSION_REQUEST_COARSE_LOCATION);
+   if (ContextCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+       ActivityCompat.requestPermissions(MainActivity.this, new String[] { android.Manifest.permission.ACCESS_COARSE_LOCATION }, REQUEST_PERMISSION_COARSE_LOCATION);
    }
    // And catch the result like this:
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+      @Override public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[],
+          @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == PERMISSION_REQUEST_COARSE_LOCATION) {
-            for (String permission : permissions) {
-                if (android.Manifest.permission.ACCESS_FINE_LOCATION.equals(permission)) {
-                    // Do stuff if permission granted
-                }
+        if (requestCode == REQUEST_PERMISSION_COARSE_LOCATION) {
+          for (String permission : permissions) {
+            if (android.Manifest.permission.ACCESS_COARSE_LOCATION.equals(permission)) {
+              // Do stuff if permission granted
             }
+          }
         }
-    }
+      }
    ```
 
-4. Check that bluetooth is available and enabled:
+3. Check that bluetooth is available and enabled:
    ```java
    // check if bluetooth is supported on your hardware
    if  (!rxBluetooth.isBluetoothAvailable()) {
@@ -64,8 +55,8 @@ Usage
    }
    ```
 
-5. Have fun.
-6. Make sure you are unsubscribing and stopping discovery in `OnDestroy()`:
+4. Have fun.
+5. Make sure you are unsubscribing and stopping discovery in `OnDestroy()`:
 
    ```java
    if (rxBluetooth != null) {
@@ -86,22 +77,31 @@ rxBluetooth.observeDevices()
     }));
 ```
 
-##### Create connection to device
+##### Create connection between devices
 ```java
-// Use 00001101-0000-1000-8000-00805F9B34FB for SPP service 
+// Use 00001101-0000-1000-8000-00805F9B34FB for SPP service
 // (ex. Arduino) or use your own generated UUID.
-UUID uuid = UUID.fromString("xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx");
+// UUID uuid = UUID.fromString("xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx");
 
-rxBluetooth.observeConnectDevice(bluetoothDevice, uuid)
-    .observeOn(AndroidSchedulers.mainThread())
-    .subscribeOn(Schedulers.io())
-    .subscribe(new Consumer<BluetoothSocket>() {
-      @Override public void accept(BluetoothSocket socket) throws Exception {
-        // Connected to the device, do anything with the socket
+rxBluetooth.connectAsServer("servername", uuid).subscribe(
+    new Consumer<BluetoothSocket>() {
+      @Override public void accept(BluetoothSocket bluetoothSocket) throws Exception {
+        // Client connected, do anything with the socket
       }
     }, new Consumer<Throwable>() {
       @Override public void accept(Throwable throwable) throws Exception {
-        // Error occured
+        // On error
+      }
+    });
+
+rxBluetooth.connectAsClient(bluetoothDevice, uuid).subscribe(
+    new Consumer<BluetoothSocket>() {
+      @Override public void accept(BluetoothSocket bluetoothSocket) throws Exception {
+        // Connected to bluetooth device, do anything with the socket
+      }
+    }, new Consumer<Throwable>() {
+      @Override public void accept(Throwable throwable) throws Exception {
+        // On error
       }
     });
 ```
@@ -350,9 +350,12 @@ rxBluetooth.observeAclEvent() //
 
 Download
 --------
+Releases are available both in `jcenter` and `mavenCentral` repositories.
 ```groovy
-compile 'com.github.ivbaranov:rxbluetooth2:2.0.0-SNAPSHOT'
+compile 'com.github.ivbaranov:rxbluetooth2:2.0.4'
 ```
+
+#### Snapshots
 Snapshots of the development version are available in [Sonatype's `snapshots` repository][snapshots].
 
 In order to download from snapshot repository add:

@@ -28,21 +28,23 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.security.InvalidParameterException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-public class BluetoothConnection {
+public final class BluetoothConnection {
 
   private static final String TAG = BluetoothConnection.class.getName();
 
   private BluetoothSocket socket;
 
-  private InputStream inputStream;
+  InputStream inputStream;
   private OutputStream outputStream;
 
-  private Flowable<Byte> mObserveInputStream;
+  private Flowable<Byte> observeInputStream;
 
-  private boolean connected = false;
+  boolean connected = false;
 
   /**
    * Container for simplifying read and write from/to {@link BluetoothSocket}.
@@ -77,15 +79,15 @@ public class BluetoothConnection {
    * @return RxJava Observable with {@link Byte}
    */
   public Flowable<Byte> observeByteStream() {
-    if (mObserveInputStream == null) {
-      mObserveInputStream = Flowable.create(new FlowableOnSubscribe<Byte>() {
+    if (observeInputStream == null) {
+      observeInputStream = Flowable.create(new FlowableOnSubscribe<Byte>() {
         @Override public void subscribe(final FlowableEmitter<Byte> subscriber) {
           while (!subscriber.isCancelled()) {
             try {
               subscriber.onNext((byte) inputStream.read());
             } catch (IOException e) {
               connected = false;
-              subscriber.onError(new ConnectionClosedException("Can't read stream"));
+              subscriber.onError(new ConnectionClosedException("Can't read stream", e));
             } finally {
               if (!connected) {
                 closeConnection();
@@ -96,7 +98,7 @@ public class BluetoothConnection {
       }, BackpressureStrategy.BUFFER).share();
     }
 
-    return mObserveInputStream;
+    return observeInputStream;
   }
 
   /**
@@ -120,6 +122,7 @@ public class BluetoothConnection {
       @Override public Subscriber<? super Byte> apply(final Subscriber<? super String> subscriber) {
         return new Subscriber<Byte>() {
           ArrayList<Byte> buffer = new ArrayList<>();
+          List<Integer> receivedDelimiters = new ArrayList<>();
 
           @Override public void onSubscribe(Subscription d) {
             subscriber.onSubscribe(d);
@@ -143,13 +146,16 @@ public class BluetoothConnection {
             boolean found = false;
             for (int d : delimiter) {
               if (b == d) {
+                receivedDelimiters.add((int) b);
                 found = true;
                 break;
               }
             }
 
             if (found) {
-              emit();
+              if (!delimitersMatched()) {
+                emit();
+              }
             } else {
               buffer.add(b);
             }
@@ -169,6 +175,17 @@ public class BluetoothConnection {
 
             subscriber.onNext(new String(bArray));
             buffer.clear();
+            receivedDelimiters.clear();
+          }
+
+          /** Returns true if list of received delimiter(s) matched the provided one(s).*/
+          private boolean delimitersMatched() {
+            int[] array = new int[receivedDelimiters.size()];
+            for (int i = 0; i < receivedDelimiters.size(); i++) {
+              array[i] = receivedDelimiters.get(i);
+            }
+
+            return Arrays.equals(array, delimiter);
           }
         };
       }
@@ -225,21 +242,9 @@ public class BluetoothConnection {
    * Close the streams and socket connection.
    */
   public void closeConnection() {
-    try {
-      connected = false;
-
-      if (inputStream != null) {
-        inputStream.close();
-      }
-
-      if (outputStream != null) {
-        outputStream.close();
-      }
-
-      if (socket != null) {
-        socket.close();
-      }
-    } catch (IOException ignored) {
-    }
+    connected = false;
+    Utils.close(inputStream);
+    Utils.close(outputStream);
+    Utils.close(socket);
   }
 }

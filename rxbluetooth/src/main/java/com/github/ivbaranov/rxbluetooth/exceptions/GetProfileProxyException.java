@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- package com.github.ivbaranov.rxbluetooth.exceptions;
+package com.github.ivbaranov.rxbluetooth.exceptions;
 
 import android.bluetooth.BluetoothAdapter;
 
@@ -21,7 +21,7 @@ import android.bluetooth.BluetoothAdapter;
  * Thrown when {@link BluetoothAdapter#getProfileProxy} returns true, which means that connection
  * to bluetooth profile failed.
  */
-public class GetProfileProxyException extends RuntimeException {
+public final class GetProfileProxyException extends RuntimeException {
 
   public GetProfileProxyException() {
     super("Failed to get profile proxy");
